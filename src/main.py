@@ -1,45 +1,47 @@
 import pandas as pd
+import numpy as np
+
 from metrics import (
-    compute_simple_returns,
-    compute_cumulative_returns,
-    compute_volatility,
-    compute_max_drawdown,
-    moving_average_strategy
+    simple_returns,
+    moving_average_strategy,
+    compute_strategy_returns,
+    equity_curve,
+    volatility,
+    max_drawdown
 )
 
+# Load data
+df = pd.read_csv("data/AAPL.csv")
 
-def main():
-    # Load data
-    df = pd.read_csv("data/AAPL.csv")
+# Asset returns
+df["asset_return"] = simple_returns(df["Close"])
 
-    prices = df["Close"]
+# Strategy signal & position
+df["position"] = moving_average_strategy(df["Close"], window=3)
 
-    # --- Buy & Hold ---
-    simple_returns = compute_simple_returns(prices)
-    cumulative_returns = compute_cumulative_returns(simple_returns)
+# Strategy returns
+df["strategy_return"] = compute_strategy_returns(
+    df["asset_return"],
+    df["position"]
+)
 
-    asset_vol = compute_volatility(simple_returns)
-    asset_dd = compute_max_drawdown(cumulative_returns)
+# Equity curves
+df["asset_equity"] = equity_curve(df["asset_return"])
+df["strategy_equity"] = equity_curve(df["strategy_return"])
 
-    print("Quant Research Report")
-    print("---------------------")
-    print(f"Observations: {len(df)}")
-    print(f"Asset Volatility: {asset_vol:.4f}")
-    print(f"Asset Max Drawdown: {asset_dd:.4f}")
+# ---- Report ----
+print("\nQuant Research Report")
+print("---------------------")
+print(f"Observations: {len(df)}")
+print(f"Asset Volatility: {volatility(df['asset_return']):.4f}")
+print(f"Asset Max Drawdown: {max_drawdown(df['asset_equity']):.4f}")
 
-    # --- Moving Average Strategy ---
-    position = moving_average_strategy(prices)
-    strategy_returns = position * simple_returns
-    strategy_cumulative = (1 + strategy_returns).cumprod()
+print("\nStrategy Performance")
+print("---------------------")
+print(f"Strategy Volatility: {volatility(df['strategy_return']):.4f}")
+print(f"Strategy Max Drawdown: {max_drawdown(df['strategy_equity']):.4f}")
 
-    strategy_vol = compute_volatility(strategy_returns)
-    strategy_dd = compute_max_drawdown(strategy_cumulative)
-
-    print("\nMoving Average Strategy")
-    print("-----------------------")
-    print(f"Strategy Volatility: {strategy_vol:.4f}")
-    print(f"Strategy Max Drawdown: {strategy_dd:.4f}")
-
-
-if __name__ == "__main__":
-    main()
+print("\nFinal Equity Values")
+print("-------------------")
+print(f"Asset Final Equity: {df['asset_equity'].iloc[-1]:.4f}")
+print(f"Strategy Final Equity: {df['strategy_equity'].iloc[-1]:.4f}")

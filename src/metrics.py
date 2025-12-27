@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 
 def compute_simple_returns(prices):
@@ -40,3 +41,22 @@ def moving_average_strategy(prices, window=20):
     signal = prices > moving_avg
     position = signal.shift(1).fillna(0)
     return position
+
+def compute_strategy_returns(asset_returns: pd.Series,
+                             positions: pd.Series) -> pd.Series:
+    """
+    Strategy return = position(t-1) * asset_return(t)
+    """
+    return positions.shift(1) * asset_returns
+
+
+def equity_curve(returns: pd.Series) -> pd.Series:
+    """
+    Converts returns into cumulative equity curve
+    """
+    return (1 + returns.fillna(0)).cumprod()
+
+# Backwards-compatible names expected by scripts that import from `metrics`
+simple_returns = compute_simple_returns
+volatility = compute_volatility
+max_drawdown = compute_max_drawdown
