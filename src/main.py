@@ -20,7 +20,7 @@ df["asset_return"] = simple_returns(df["Close"])
 df["position"] = moving_average_strategy(df["Close"], window=3)
 
 # Strategy returns
-df["strategy_return"] = compute_strategy_returns(
+df["strategy_return"] = compute_strategy_returns(\
     df["asset_return"],
     df["position"]
 )
@@ -45,3 +45,17 @@ print("\nFinal Equity Values")
 print("-------------------")
 print(f"Asset Final Equity: {df['asset_equity'].iloc[-1]:.4f}")
 print(f"Strategy Final Equity: {df['strategy_equity'].iloc[-1]:.4f}")
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(10, 6))
+plt.plot(df["asset_equity"], label="Buy & Hold", linewidth=2)
+plt.plot(df["strategy_equity"], label="Strategy", linewidth=2)
+
+plt.title("Equity Curve Comparison")
+plt.xlabel("Time")
+plt.ylabel("Equity (Starting at 1.0)")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
