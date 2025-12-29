@@ -4,85 +4,107 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
-import pandas as pd
 import matplotlib.pyplot as plt
 
-from src.strategies import moving_average_strategy
+from src.data_api import fetch_stock_data
+from src.strategies import (
+    moving_average_strategy,
+    buy_and_hold_strategy
+)
 from src.backtest import run_backtest
 from src.metrics import volatility, max_drawdown
 
-# -----------------------------
-# Page Config
-# -----------------------------
-st.set_page_config(page_title="Quant Research Dashboard", layout="wide")
+# -------------------------
+# Page setup
+# -------------------------
+st.set_page_config(page_title="Live Quant Dashboard", layout="wide")
+st.title("Live Quant Research Dashboard")
 
-st.title("Quant Research Dashboard")
+# -------------------------
+# Sidebar controls
+# -------------------------
+st.sidebar.header("Market Controls")
 
-# -----------------------------
-# Sidebar Controls
-# -----------------------------
-st.sidebar.header("Strategy Controls")
+ticker = st.sidebar.selectbox(
+    "Select Stock",
+    {
+        "Apple (AAPL)": "AAPL",
+        "Google (GOOG)": "GOOG",
+        "Microsoft (MSFT)": "MSFT",
+    }.items(),
+    format_func=lambda x: x[0]
+)[1]
 
-ma_window = st.sidebar.slider(
-    "Moving Average Window",
-    min_value=2,
-    max_value=20,
-    value=3,
-    step=1
+strategy_name = st.sidebar.selectbox(
+    "Select Strategy",
+    ["Buy & Hold", "Moving Average"]
 )
 
-# -----------------------------
-# Load Data
-# -----------------------------
-data = pd.read_csv("data/AAPL.csv")
+ma_window = None
+if strategy_name == "Moving Average":
+    ma_window = st.sidebar.slider(
+        "Moving Average Window",
+        5, 50, 20
+    )
 
-# -----------------------------
-# Run Strategy + Backtest
-# -----------------------------
-position = moving_average_strategy(data, window=ma_window)
+refresh = st.sidebar.button("Refresh Data")
+
+# -------------------------
+# Data loading (cached)
+# -------------------------
+@st.cache_data(ttl=60)
+def load_data(ticker):
+    return fetch_stock_data(ticker)
+
+try:
+    data = load_data(ticker)
+except Exception as e:
+    st.error(f"Failed to load data for {ticker}: {e}")
+    # Fall back to AAPL local CSV if available
+    try:
+        data = load_data('AAPL')
+        st.warning("Falling back to AAPL local data")
+    except Exception:
+        st.stop()
+
+# -------------------------
+# Strategy selection
+# -------------------------
+if strategy_name == "Buy & Hold":
+    position = buy_and_hold_strategy(data)
+else:
+    position = moving_average_strategy(data, ma_window)
+
 bt = run_backtest(data, position)
 
-# -----------------------------
+# -------------------------
 # Layout
-# -----------------------------
+# -------------------------
 left_col, right_col = st.columns([3, 1])
 
-# -----------------------------
-# Equity Curve Plot
-# -----------------------------
+# -------------------------
+# Plot
+# -------------------------
 with left_col:
     fig, ax = plt.subplots()
-    ax.plot(bt["Date"], bt["bh_equity"], label="Buy & Hold")
-    ax.plot(bt["Date"], bt["strategy_equity"], label="Strategy")
-    ax.legend()
-    ax.set_title("Equity Curves")
+
+    ax.plot(bt["Date"], bt["bh_equity"], label="Buy & Hold", linestyle="--")
+
+    if strategy_name != "Buy & Hold":
+        ax.plot(bt["Date"], bt["strategy_equity"], label=strategy_name)
+
+    ax.set_title(f"{ticker} Equity Curves")
     ax.set_xlabel("Date")
     ax.set_ylabel("Equity")
+    ax.legend()
 
     st.pyplot(fig)
 
-# -----------------------------
-# Metrics Panel
-# -----------------------------
+# -------------------------
+# Metrics
+# -------------------------
 with right_col:
     st.subheader("Performance Metrics")
 
-    st.metric(
-        "Buy & Hold Volatility",
-        f"{volatility(bt['return']):.4f}"
-    )
-
-    st.metric(
-        "Strategy Volatility",
-        f"{volatility(bt['strategy_return']):.4f}"
-    )
-
-    st.metric(
-        "Buy & Hold Max Drawdown",
-        f"{max_drawdown(bt['bh_equity']):.2%}"
-    )
-
-    st.metric(
-        "Strategy Max Drawdown",
-        f"{max_drawdown(bt['strategy_equity']):.2%}"
-    )
+    st.metric("Volatility", f"{volatility(bt['strategy_return']):.4f}")
+    st.metric("Max Drawdown", f"{max_drawdown(bt['strategy_equity']):.2%}")
